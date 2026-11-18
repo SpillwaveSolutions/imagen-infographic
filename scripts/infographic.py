@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -232,6 +233,16 @@ def all_text(spec: dict) -> list[str]:
     return out
 
 
+def codex_read(png: Path, question: str) -> str:
+    """Vision fallback when Gemini cannot answer (no key, quota, billing). The
+    prompt follows "--", because codex's -i takes several files."""
+    if not shutil.which("codex"):
+        return ""
+    r = subprocess.run(["codex", "exec", "--skip-git-repo-check", "-s", "read-only", "-i", str(png), "--", question],
+                       capture_output=True, text=True, cwd=str(png.parent), stdin=subprocess.DEVNULL)
+    return r.stdout if r.returncode == 0 else ""  # stdin closed: codex exec waits on an open pipe
+
+
 def missing_text(png: Path, needed: list[str], want_sources: bool, allowed_text: list[str]) -> list[str]:
     # The word "transcribe" makes the model refuse ("No description generated"),
     # so ask what appears. The answer is a bulleted list after a preamble line.
@@ -243,8 +254,10 @@ def missing_text(png: Path, needed: list[str], want_sources: bool, allowed_text:
         if out.strip() and "Error:" not in out:
             break
     else:
-        print("warn: read-back failed twice; keeping the image unchecked", file=sys.stderr)
-        return []  # a probe outage must not discard a good image
+        out = codex_read(png, ask[-1])
+        if not out.strip():
+            print("warn: read-back failed (imagen and codex); keeping the image unchecked", file=sys.stderr)
+            return []  # a probe outage must not discard a good image
     items = [l for l in out.splitlines() if re.match(r"\s*([*\-•]|\d+[.)])\s", l)]
     seen = norm("\n".join(items or out.splitlines()))
     miss = []
@@ -329,6 +342,14 @@ def scene(spec: dict, out: Path, attempts: int, dry: bool, base: Path) -> int:
             print(f"ok: {out} (attempt {n})")
             return 0
         print(f"attempt {n}: no image {r.stderr[-300:]}", file=sys.stderr)
+        # The plugin's generate.py falls through its other engines, but it takes no
+        # reference image, so describe the screen instead of showing the diagram.
+        fb = prompt.replace("The reference image is a diagram. Draw a small, simplified copy of it ONLY inside the "
+                            "frame of the main monitor's screen", "The main monitor shows a simple boxes-and-arrows "
+                            "diagram, drawn ONLY inside the frame of the screen") if diagram else prompt
+        if generate(fb, out, str(spec.get("aspect", "16:9"))):
+            print(f"ok: {out} (attempt {n}, fallback engine, no reference image)")
+            return 0
     return 1
 
 
