@@ -89,7 +89,13 @@ def contrast(a: str, b: str) -> float:
 
 
 def lint(spec: dict) -> list[str]:
+    # A spec may raise or lower a limit with `limits:`, for example a roadmap
+    # that needs one point per day. Unknown keys are an error, not ignored.
+    extra = spec.get("limits") or {}
+    L = {**LIMITS, **extra}
     errs = []
+    for key in sorted(set(extra) - set(LIMITS)):
+        errs.append(f"limits: unknown key '{key}', use one of {sorted(LIMITS)}")
     msg = str(spec.get("message", "")).strip()
     if not msg:
         errs.append("message: missing (state the one takeaway in one sentence)")
@@ -100,31 +106,31 @@ def lint(spec: dict) -> list[str]:
     head = spec.get("headline", "")
     if not head:
         errs.append("headline: missing (it states the takeaway)")
-    elif words(head) > LIMITS["headline_words"]:
-        errs.append(f"headline: {words(head)} words, limit {LIMITS['headline_words']}")
+    elif words(head) > L["headline_words"]:
+        errs.append(f"headline: {words(head)} words, limit {L['headline_words']}")
 
     secs = spec.get("sections") or []
-    if not LIMITS["min_sections"] <= len(secs) <= LIMITS["max_sections"]:
-        errs.append(f"sections: {len(secs)}, need {LIMITS['min_sections']}-{LIMITS['max_sections']}")
+    if not L["min_sections"] <= len(secs) <= L["max_sections"]:
+        errs.append(f"sections: {len(secs)}, need {L['min_sections']}-{L['max_sections']}")
     total = words(head) + words(spec.get("subhead", ""))
     for i, s in enumerate(secs, 1):
         label, visual = s.get("label", ""), str(s.get("visual", "")).lower()
         total += words(label)
         if not label:
             errs.append(f"section {i}: label missing")
-        elif words(label) > LIMITS["label_words"]:
-            errs.append(f"section {i}: label {words(label)} words, limit {LIMITS['label_words']}")
+        elif words(label) > L["label_words"]:
+            errs.append(f"section {i}: label {words(label)} words, limit {L['label_words']}")
         if visual in BANNED_VISUALS:
             errs.append(f"section {i}: '{visual}' is banned (no pies, donuts, radar, or 3D)")
         elif visual not in VISUALS:
             errs.append(f"section {i}: visual '{visual}' not in {sorted(VISUALS)}")
         pts = s.get("points") or []
-        if len(pts) > LIMITS["points"]:
-            errs.append(f"section {i}: {len(pts)} points, limit {LIMITS['points']} (move the rest to the article)")
+        if len(pts) > L["points"]:
+            errs.append(f"section {i}: {len(pts)} points, limit {L['points']} (move the rest to the article)")
         for p in pts:
             total += words(p)
-            if words(p) > LIMITS["point_words"]:
-                errs.append(f"section {i}: point '{p}' is {words(p)} words, limit {LIMITS['point_words']}")
+            if words(p) > L["point_words"]:
+                errs.append(f"section {i}: point '{p}' is {words(p)} words, limit {L['point_words']}")
         data = s.get("data") or []
         if visual in DATA_VISUALS and not data:
             errs.append(f"section {i}: '{visual}' needs data values")
@@ -134,8 +140,8 @@ def lint(spec: dict) -> list[str]:
             total += words(d.get("label", "")) + 1
             if not d.get("source"):
                 errs.append(f"section {i}: data '{d.get('label')}' has no source")
-    if total > LIMITS["total_words"]:
-        errs.append(f"text: {total} words, limit {LIMITS['total_words']} (an infographic is not an article)")
+    if total > L["total_words"]:
+        errs.append(f"text: {total} words, limit {L['total_words']} (an infographic is not an article)")
     # sources is optional: no field means no footer line. Each data value still names its source.
 
     pal = spec.get("palette") or {}
@@ -143,8 +149,8 @@ def lint(spec: dict) -> list[str]:
         errs.append("palette: needs background and ink (set palette or theme)")
     else:
         colors = {v.upper() for k, v in pal.items() if k not in ("background", "surface", "primary_fg")}
-        if len(colors) > LIMITS["colors"]:
-            errs.append(f"palette: {len(colors)} colors, limit {LIMITS['colors']}")
+        if len(colors) > L["colors"]:
+            errs.append(f"palette: {len(colors)} colors, limit {L['colors']}")
         pairs = [("ink", "background"), ("primary_fg", "primary"), ("ink", "surface")]
         for fg, bg in pairs:
             if fg in pal and bg in pal and contrast(pal[fg], pal[bg]) < 4.5:
@@ -369,6 +375,13 @@ def self_test() -> None:
                         *good["sections"][:2]]
     assert lint(days) == [], lint(days)
     assert "FOOTER: none" in build_prompt(days) and "Sources:" not in build_prompt(days)
+    # limits: a roadmap with 5 points per panel fails by default and passes with an override.
+    long = {**good, "sections": [{"label": "Week one", "visual": "timeline",
+                                  "points": ["Day 1: Install", "Day 2: Loop", "Day 3: Plan", "Day 4: Rules", "Day 5: Ask"]},
+                                 *good["sections"][:2]]}
+    assert any("5 points, limit 3" in e for e in lint(long)), lint(long)
+    assert lint({**long, "limits": {"points": 5}}) == [], lint({**long, "limits": {"points": 5}})
+    assert any("unknown key 'pointz'" in e for e in lint({**long, "limits": {"pointz": 5}}))
     low = {**good, "palette": {**good["palette"], "ink": "#BBBBBB"}}
     assert any("contrast" in e for e in lint(low)), lint(low)
     assert round(contrast("#000000", "#FFFFFF"), 1) == 21.0
