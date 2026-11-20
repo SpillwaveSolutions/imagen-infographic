@@ -16,6 +16,7 @@ A spec is a Markdown file with YAML frontmatter. Name it `<name>.infographic.md`
 | `sections[].points` | no | Up to 3 phrases of 8 words or fewer. |
 | `sections[].data` | for `bar`, `line`, `stat` | A list of `{label, value, source}`. `bar` and `line` need at least 2 values. |
 | `sources` | no | The footer list of sources. Leave it out for no footer line. Each data value still needs its own `source`. |
+| `limits` | no | Overrides for the lint limits, for example `{points: 6, total_words: 260}` for a roadmap with one point per day. Keys: `headline_words`, `label_words`, `point_words`, `points`, `min_sections`, `max_sections`, `total_words`, `colors`. A crowded image is still checked by the read-back. |
 | `theme` | one of theme or palette | An imagen-diagrams theme id, for example `arctic-fox`. |
 | `palette` | one of theme or palette | Hex colors: `background` and `ink` are required. `primary`, `primary_fg`, `accent`, `muted`, and `surface` are optional. At most 4 colors other than the background. |
 | `style` | no | Free text style. A theme fills it. |
