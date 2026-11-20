@@ -40,7 +40,6 @@ VISUAL_HINTS = {
 }
 LIMITS = dict(headline_words=8, label_words=4, point_words=8, points=3,
               min_sections=3, max_sections=6, total_words=130, colors=4)
-NUM = re.compile(r"\d")
 
 
 # ---------------------------------------------------------------- theme + spec
@@ -108,7 +107,6 @@ def lint(spec: dict) -> list[str]:
     if not LIMITS["min_sections"] <= len(secs) <= LIMITS["max_sections"]:
         errs.append(f"sections: {len(secs)}, need {LIMITS['min_sections']}-{LIMITS['max_sections']}")
     total = words(head) + words(spec.get("subhead", ""))
-    has_number = bool(NUM.search(str(head)))
     for i, s in enumerate(secs, 1):
         label, visual = s.get("label", ""), str(s.get("visual", "")).lower()
         total += words(label)
@@ -125,7 +123,6 @@ def lint(spec: dict) -> list[str]:
             errs.append(f"section {i}: {len(pts)} points, limit {LIMITS['points']} (move the rest to the article)")
         for p in pts:
             total += words(p)
-            has_number |= bool(NUM.search(str(p)))
             if words(p) > LIMITS["point_words"]:
                 errs.append(f"section {i}: point '{p}' is {words(p)} words, limit {LIMITS['point_words']}")
         data = s.get("data") or []
@@ -134,14 +131,12 @@ def lint(spec: dict) -> list[str]:
         if visual in {"bar", "line"} and 0 < len(data) < 2:
             errs.append(f"section {i}: '{visual}' needs at least 2 values")
         for d in data:
-            has_number = True
             total += words(d.get("label", "")) + 1
             if not d.get("source"):
                 errs.append(f"section {i}: data '{d.get('label')}' has no source")
     if total > LIMITS["total_words"]:
         errs.append(f"text: {total} words, limit {LIMITS['total_words']} (an infographic is not an article)")
-    if has_number and not spec.get("sources"):
-        errs.append("sources: numbers appear but the footer lists no source")
+    # sources is optional: no field means no footer line. Each data value still names its source.
 
     pal = spec.get("palette") or {}
     if not {"background", "ink"} <= pal.keys():
@@ -359,8 +354,21 @@ def self_test() -> None:
     bad = {**good, "message": "Two ideas. Two messages.", "sources": [],
            "sections": [{"label": "x", "visual": "pie", "points": ["90% faster"]}] * 9}
     errs = " ".join(lint(bad))
-    for frag in ("more than one sentence", "sections: 9", "banned", "no source"):
+    for frag in ("more than one sentence", "sections: 9", "banned"):
         assert frag in errs, (frag, errs)
+    # A data value with no source still fails, with or without a footer.
+    unsourced = {**good, "sections": [*good["sections"][:2],
+                 {"label": "Window usage", "visual": "bar", "data": [{"label": "Rules", "value": 8}, {"label": "Chat", "value": 60, "source": "test"}]}]}
+    assert any("has no source" in e for e in lint(unsourced)), lint(unsourced)
+    # sources present: today's footer line, and the read-back looks for it.
+    assert 'FOOTER (exact text, small): "Sources: test fixture"' in build_prompt(good)
+    assert "test fixture" in all_text(good) and "test fixture" not in all_text({**good, "sources": None})
+    # sources absent: numbers in points are fine, and there is no footer line.
+    days = {k: v for k, v in good.items() if k != "sources"}
+    days["sections"] = [{"label": "Getting started", "visual": "timeline", "points": ["Day 1: Install once", "Day 2: Start"]},
+                        *good["sections"][:2]]
+    assert lint(days) == [], lint(days)
+    assert "FOOTER: none" in build_prompt(days) and "Sources:" not in build_prompt(days)
     low = {**good, "palette": {**good["palette"], "ink": "#BBBBBB"}}
     assert any("contrast" in e for e in lint(low)), lint(low)
     assert round(contrast("#000000", "#FFFFFF"), 1) == 21.0

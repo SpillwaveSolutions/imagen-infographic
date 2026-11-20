@@ -15,7 +15,7 @@ A spec is a Markdown file with YAML frontmatter. Name it `<name>.infographic.md`
 | `sections[].visual` | yes | `bar`, `line`, `timeline`, `process`, `diagram`, `comparison`, `stat`, `icons`, or `checklist`. |
 | `sections[].points` | no | Up to 3 phrases of 8 words or fewer. |
 | `sections[].data` | for `bar`, `line`, `stat` | A list of `{label, value, source}`. `bar` and `line` need at least 2 values. |
-| `sources` | if any number appears | The footer list of sources. |
+| `sources` | no | The footer list of sources. Leave it out for no footer line. Each data value still needs its own `source`. |
 | `theme` | one of theme or palette | An imagen-diagrams theme id, for example `arctic-fox`. |
 | `palette` | one of theme or palette | Hex colors: `background` and `ink` are required. `primary`, `primary_fg`, `accent`, `muted`, and `surface` are optional. At most 4 colors other than the background. |
 | `style` | no | Free text style. A theme fills it. |
@@ -79,6 +79,5 @@ aspect: "16:9"
 - A label longer than 4 words, more than 3 points, or a point longer than 8 words.
 - A `pie`, `donut`, `radar`, or `3d` visual, or a visual outside the list.
 - A `bar`, `line`, or `stat` panel with no data, or a data item with no `source`.
-- Numbers anywhere with no `sources` footer.
 - More than 130 printed words, or more than 4 colors.
 - Text contrast below 4.5:1 for ink on background, ink on surface, or `primary_fg` on `primary`.

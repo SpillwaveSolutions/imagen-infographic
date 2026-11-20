@@ -10,7 +10,7 @@ A good infographic turns complex information into something clear, memorable, an
 ## The design rules (read before you write a spec)
 
 1. **One clear message.** You must be able to say the whole piece in one sentence. Write that sentence first, as `message`. The `headline` states the takeaway, so the reader gets the point in about five seconds. Two competing ideas make two infographics, or one article section.
-2. **Accurate, credible data.** Use facts from the source material only. Every number carries a source, and the footer lists the sources. A misleading scale or a cherry-picked number destroys trust faster than no chart at all.
+2. **Accurate, credible data.** Use facts from the source material only. Every data value carries a source. The footer lists the sources when the spec has a `sources` field; with no field, the image has no footer line. A misleading scale or a cherry-picked number destroys trust faster than no chart at all.
 3. **One named audience.** Match complexity and vocabulary to what that reader already knows. A generic overview helps nobody.
 4. **Hierarchy and flow.** Size, contrast, and placement tell the eye where to go: headline, then panel labels, then short phrases. Use a top-to-bottom sequence or a clear modular grid.
 5. **The right visual for the data.**
